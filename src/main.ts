@@ -1,5 +1,5 @@
 import { RANK, ago, readGoogle, readSlack, readStatuspage, siteAddress, summaryFeed, webAddress, type Level, type Report } from "./feeds.ts";
-import { SERVICES, reportsLink, type Service } from "./services.ts";
+import { SERVICES, pastedReports, reportsPage, type Service } from "./services.ts";
 
 declare const __VERSION__: string;
 
@@ -14,6 +14,8 @@ interface Own {
   name: string;
   address: string;
   kind: "statuspage" | "site";
+  /** Its page on Downdetector, if the person pasted one; otherwise the board works it out from the name. */
+  reports?: string;
 }
 /** What the last check of a service found. */
 interface Seen {
@@ -34,6 +36,7 @@ const chooserEl = el("chooser");
 const picksEl = el("picks");
 const nameInput = el<HTMLInputElement>("own-name");
 const addressInput = el<HTMLInputElement>("own-address");
+const reportsInput = el<HTMLInputElement>("own-reports");
 const addButton = el<HTMLButtonElement>("own-add");
 const noteEl = el("own-note");
 
@@ -67,9 +70,11 @@ const hidden = loadHidden();
 const seen = new Map<string, Seen>();
 let running = false;
 let checkedAt = 0;
+/** The trouble cards that have been opened. The rest show one line. */
+const opened = new Set<string>();
 
 function services(): Service[] {
-  const mine = own.map((o): Service => ({ id: o.id, name: o.name, group: "Mine", kind: o.kind, feed: o.kind === "statuspage" ? summaryFeed(o.address) : undefined, page: o.address, own: true }));
+  const mine = own.map((o): Service => ({ id: o.id, name: o.name, group: "Mine", kind: o.kind, feed: o.kind === "statuspage" ? summaryFeed(o.address) : undefined, page: o.address, own: true, reports: (typeof o.reports === "string" && pastedReports(o.reports)) || reportsPage(o.name) }));
   return [...mine, ...SERVICES];
 }
 function shown(): Service[] {
@@ -165,10 +170,32 @@ function card(service: Service, full: boolean): HTMLElement {
   const found = seen.get(service.id);
   const box = h("article", `svc lvl-${level}`);
   const name = h("div", "name");
-  name.append(h("h3", "", service.name), h("span", "group", service.group), h("span", "badge", badge(service, level)));
+  box.dataset.id = service.id;
+  const title = h("h3");
+  const isOpen = opened.has(service.id);
+  if (full) {
+    // A card with trouble starts closed: its heading is a button that opens and closes it
+    const toggle = h("button", "toggle", service.name);
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", String(isOpen));
+    title.append(toggle);
+    name.classList.add("opens");
+    name.addEventListener("click", () => {
+      if (isOpen) opened.delete(service.id);
+      else opened.add(service.id);
+      render();
+      document.querySelector<HTMLButtonElement>(`[data-id="${CSS.escape(service.id)}"] .toggle`)?.focus();
+    });
+  } else {
+    title.textContent = service.name;
+  }
+  name.append(title, h("span", "group", service.group), h("span", "badge", badge(service, level)));
   box.append(name);
   const says = found?.failed ?? (full || service.kind === "site" ? found?.report?.summary : "");
-  if (says) box.append(h("p", "sum", says));
+  const open = found?.report?.incidents.length ?? 0;
+  const more = full && !isOpen && open ? ` ${open} open ${open === 1 ? "incident" : "incidents"}.` : "";
+  if (says || more) box.append(h("p", "sum", (says ? says.replace(/[.\s]*$/, ".") : "") + more));
+  if (full && !isOpen) return box;
   if (full && found?.report) {
     if (found.report.parts.length) {
       const parts = h("ul", "parts");
@@ -187,7 +214,8 @@ function card(service: Service, full: boolean): HTMLElement {
     }
   }
   const links = h("div", "links");
-  links.append(outside(service.kind === "site" ? "Open its website" : "Its status page", service.page), outside("Reports on Downdetector", reportsLink(service.name)));
+  links.append(outside(service.kind === "site" ? "Open its website" : "Its status page", service.page));
+  if (service.reports) links.append(outside("Reports on Downdetector", service.reports));
   box.append(links);
   return box;
 }
@@ -284,6 +312,9 @@ async function addOwn(): Promise<void> {
   const address = siteAddress(addressInput.value);
   if (!name) return void (noteEl.textContent = "Give it a name.");
   if (!address) return void (noteEl.textContent = "That does not look like a web address. Try something like www.example.com.");
+  const pasted = reportsInput.value.trim();
+  const reports = pasted ? pastedReports(pasted) : null;
+  if (pasted && !reports) return void (noteEl.textContent = "The Downdetector page should be an address on downdetector.com. Leave it empty to let the board work it out.");
   addButton.disabled = true;
   noteEl.textContent = "Looking for a status feed there…";
   let kind: Own["kind"] = "site";
@@ -294,15 +325,16 @@ async function addOwn(): Promise<void> {
   } catch {
     /* no feed there: watch the website instead */
   }
-  const added: Own = { id: "own-" + Date.now().toString(36), name, address, kind };
+  const added: Own = { id: "own-" + Date.now().toString(36), name, address, kind, ...(reports ? { reports } : {}) };
   own = [...own, added];
   saveChoices();
   nameInput.value = "";
   addressInput.value = "";
+  reportsInput.value = "";
   addButton.disabled = false;
   noteEl.textContent = kind === "statuspage"
     ? `Added ${name}. It publishes a status feed, so the board reads it.`
-    : `Added ${name}. There is no status feed at that address, so the board checks that the website answers and links to Downdetector for reports.`;
+    : `Added ${name}. There is no status feed at that address, so the board checks that the website answers. Its Downdetector link is worked out from the name.`;
   drawPicks();
   const service = services().find((s) => s.id === added.id);
   if (service) seen.set(added.id, first ?? (await check(service)));
@@ -318,7 +350,7 @@ el<HTMLButtonElement>("chooser-close").addEventListener("click", () => {
   chooserEl.hidden = true;
 });
 addButton.addEventListener("click", () => void addOwn());
-for (const input of [nameInput, addressInput]) {
+for (const input of [nameInput, addressInput, reportsInput]) {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") void addOwn();
   });

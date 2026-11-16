@@ -16,58 +16,75 @@ export interface Service {
   page: string;
   /** Added by the person using the board. */
   own?: boolean;
+  /** The service's page on Downdetector, opened by the person and never read by the board. Left out when not known. */
+  reports?: string;
 }
 
-function hosted(id: string, name: string, group: string, page: string): Service {
-  return { id, name, group, kind: "statuspage", feed: new URL("/api/v2/summary.json", page).href, page };
+/** A name as Downdetector writes it in an address: "Example Bank" becomes "example-bank". */
+export function slug(name: string): string {
+  return name.toLowerCase().replace(/&/g, " and ").replace(/['\u2019.]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
-function link(id: string, name: string, group: string, page: string): Service {
-  return { id, name, group, kind: "link", page };
+/** A service's page on Downdetector, from its name there. Empty when the name gives nothing to go on. */
+export function reportsPage(name: string): string {
+  const part = slug(name);
+  return part ? `https://downdetector.com/status/${part}/` : "";
+}
+/** What someone pasted as a Downdetector page: kept only if it is an address on a Downdetector site. */
+export function pastedReports(typed: string): string | null {
+  try {
+    const url = new URL(/^https?:\/\//i.test(typed.trim()) ? typed.trim() : "https://" + typed.trim());
+    return /^(www\.)?downdetector\.(com|[a-z]{2,3}|com?\.[a-z]{2})$/i.test(url.hostname) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+// The last word is the service's name on Downdetector, where it is known. None of these could be
+// checked by program (Downdetector does not allow it), so a wrong one is fixed here by hand.
+function hosted(id: string, name: string, group: string, page: string, on = ""): Service {
+  return { id, name, group, kind: "statuspage", feed: new URL("/api/v2/summary.json", page).href, page, reports: reportsPage(on) };
+}
+function link(id: string, name: string, group: string, page: string, on = ""): Service {
+  return { id, name, group, kind: "link", page, reports: reportsPage(on) };
 }
 
 export const SERVICES: readonly Service[] = [
-  hosted("claude", "Claude", "AI", "https://status.claude.com/"),
-  hosted("openai", "OpenAI", "AI", "https://status.openai.com/"),
+  hosted("claude", "Claude", "AI", "https://status.claude.com/", "claude-ai"),
+  hosted("openai", "OpenAI", "AI", "https://status.openai.com/", "openai"),
 
-  hosted("github", "GitHub", "Building software", "https://www.githubstatus.com/"),
+  hosted("github", "GitHub", "Building software", "https://www.githubstatus.com/", "github"),
   hosted("npm", "npm", "Building software", "https://status.npmjs.org/"),
-  hosted("docker", "Docker", "Building software", "https://www.dockerstatus.com/"),
+  hosted("docker", "Docker", "Building software", "https://www.dockerstatus.com/", "docker"),
   hosted("python", "Python packages", "Building software", "https://status.python.org/"),
-  hosted("bitbucket", "Bitbucket", "Building software", "https://bitbucket.status.atlassian.com/"),
-  hosted("vercel", "Vercel", "Building software", "https://www.vercel-status.com/"),
-  hosted("netlify", "Netlify", "Building software", "https://www.netlifystatus.com/"),
-  hosted("twilio", "Twilio", "Building software", "https://status.twilio.com/"),
+  hosted("bitbucket", "Bitbucket", "Building software", "https://bitbucket.status.atlassian.com/", "bitbucket"),
+  hosted("vercel", "Vercel", "Building software", "https://www.vercel-status.com/", "vercel"),
+  hosted("netlify", "Netlify", "Building software", "https://www.netlifystatus.com/", "netlify"),
+  hosted("twilio", "Twilio", "Building software", "https://status.twilio.com/", "twilio"),
 
-  hosted("cloudflare", "Cloudflare", "Cloud", "https://www.cloudflarestatus.com/"),
-  { id: "gcloud", name: "Google Cloud", group: "Cloud", kind: "google", feed: "https://status.cloud.google.com/incidents.json", page: "https://status.cloud.google.com/" },
-  hosted("digitalocean", "DigitalOcean", "Cloud", "https://status.digitalocean.com/"),
-  link("aws", "Amazon Web Services", "Cloud", "https://health.aws.amazon.com/health/status"),
-  link("azure", "Microsoft Azure", "Cloud", "https://azure.status.microsoft/"),
+  hosted("cloudflare", "Cloudflare", "Cloud", "https://www.cloudflarestatus.com/", "cloudflare"),
+  { id: "gcloud", name: "Google Cloud", group: "Cloud", kind: "google", feed: "https://status.cloud.google.com/incidents.json", page: "https://status.cloud.google.com/", reports: reportsPage("google-cloud") },
+  hosted("digitalocean", "DigitalOcean", "Cloud", "https://status.digitalocean.com/", "digitalocean"),
+  link("aws", "Amazon Web Services", "Cloud", "https://health.aws.amazon.com/health/status", "aws-amazon-web-services"),
+  link("azure", "Microsoft Azure", "Cloud", "https://azure.status.microsoft/", "windows-azure"),
 
-  { id: "gworkspace", name: "Google Workspace", group: "Work", kind: "google", feed: "https://www.google.com/appsstatus/dashboard/incidents.json", page: "https://www.google.com/appsstatus/dashboard/" },
-  { id: "slack", name: "Slack", group: "Work", kind: "slack", feed: "https://slack-status.com/api/v2.0.0/current", page: "https://slack-status.com/" },
-  hosted("zoom", "Zoom", "Work", "https://www.zoomstatus.com/"),
-  hosted("dropbox", "Dropbox", "Work", "https://status.dropbox.com/"),
-  hosted("atlassian", "Atlassian", "Work", "https://status.atlassian.com/"),
-  hosted("notion", "Notion", "Work", "https://www.notion-status.com/"),
-  hosted("figma", "Figma", "Work", "https://status.figma.com/"),
-  hosted("linkedin", "LinkedIn", "Work", "https://www.linkedin-status.com/"),
-  link("m365", "Microsoft 365", "Work", "https://status.cloud.microsoft/"),
+  { id: "gworkspace", name: "Google Workspace", group: "Work", kind: "google", feed: "https://www.google.com/appsstatus/dashboard/incidents.json", page: "https://www.google.com/appsstatus/dashboard/", reports: reportsPage("google-workspace") },
+  { id: "slack", name: "Slack", group: "Work", kind: "slack", feed: "https://slack-status.com/api/v2.0.0/current", page: "https://slack-status.com/", reports: reportsPage("slack") },
+  hosted("zoom", "Zoom", "Work", "https://www.zoomstatus.com/", "zoom"),
+  hosted("dropbox", "Dropbox", "Work", "https://status.dropbox.com/", "dropbox"),
+  hosted("atlassian", "Atlassian", "Work", "https://status.atlassian.com/", "atlassian"),
+  hosted("notion", "Notion", "Work", "https://www.notion-status.com/", "notion"),
+  hosted("figma", "Figma", "Work", "https://status.figma.com/", "figma"),
+  hosted("linkedin", "LinkedIn", "Work", "https://www.linkedin-status.com/", "linkedin"),
+  link("m365", "Microsoft 365", "Work", "https://status.cloud.microsoft/", "microsoft-365"),
 
-  hosted("discord", "Discord", "Social and play", "https://discordstatus.com/"),
-  hosted("reddit", "Reddit", "Social and play", "https://www.redditstatus.com/"),
-  hosted("twitch", "Twitch", "Social and play", "https://status.twitch.com/"),
-  hosted("epic", "Epic Games", "Social and play", "https://status.epicgames.com/"),
+  hosted("discord", "Discord", "Social and play", "https://discordstatus.com/", "discord"),
+  hosted("reddit", "Reddit", "Social and play", "https://www.redditstatus.com/", "reddit"),
+  hosted("twitch", "Twitch", "Social and play", "https://status.twitch.com/", "twitch"),
+  hosted("epic", "Epic Games", "Social and play", "https://status.epicgames.com/", "epic-games-store"),
   link("apple", "Apple services", "Social and play", "https://www.apple.com/support/systemstatus/"),
-  link("playstation", "PlayStation Network", "Social and play", "https://status.playstation.com/"),
-  link("xbox", "Xbox", "Social and play", "https://support.xbox.com/xbox-live-status"),
+  link("playstation", "PlayStation Network", "Social and play", "https://status.playstation.com/", "playstation-network"),
+  link("xbox", "Xbox", "Social and play", "https://support.xbox.com/xbox-live-status", "xbox-live"),
 
-  hosted("shopify", "Shopify", "Shops and payments", "https://www.shopifystatus.com/"),
-  hosted("square", "Square", "Shops and payments", "https://www.issquareup.com/"),
-  hosted("coinbase", "Coinbase", "Shops and payments", "https://status.coinbase.com/"),
+  hosted("shopify", "Shopify", "Shops and payments", "https://www.shopifystatus.com/", "shopify"),
+  hosted("square", "Square", "Shops and payments", "https://www.issquareup.com/", "square"),
+  hosted("coinbase", "Coinbase", "Shops and payments", "https://status.coinbase.com/", "coinbase"),
 ];
-
-/** Where to look for what other people are reporting. Opened by the person, never read by the board. */
-export function reportsLink(name: string): string {
-  return `https://downdetector.com/search/?q=${encodeURIComponent(name)}`;
-}

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { pastedReports, reportsPage, slug } from "./services.ts";
 import { RANK, ago, plain, readGoogle, readSlack, readStatuspage, siteAddress, summaryFeed, webAddress } from "./feeds.ts";
 
 // Every feed below is made up, in the shape the real ones have.
@@ -104,4 +105,15 @@ test("an address someone types is made whole or refused", () => {
 
 test("levels sort worst first", () => {
   assert.deepEqual(["ok", "minor", "down", "unknown", "major", "maintenance"].sort((a, b) => RANK[a as keyof typeof RANK] - RANK[b as keyof typeof RANK]), ["down", "major", "minor", "maintenance", "unknown", "ok"]);
+});
+
+test("a Downdetector page is worked out from a name, or taken as pasted", () => {
+  assert.equal(slug("Example Bank"), "example-bank");
+  assert.equal(slug("  Smith & Sons' Co.  "), "smith-and-sons-co");
+  assert.equal(reportsPage("Example Bank"), "https://downdetector.com/status/example-bank/");
+  assert.equal(reportsPage("???"), "");
+  assert.equal(pastedReports("downdetector.com/status/example-bank/"), "https://downdetector.com/status/example-bank/");
+  assert.equal(pastedReports("https://downdetector.co.uk/status/example/"), "https://downdetector.co.uk/status/example/");
+  assert.equal(pastedReports("https://notdowndetector.com/x"), null);
+  assert.equal(pastedReports("https://downdetector.com.evil.example/x"), null);
 });

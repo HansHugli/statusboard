@@ -33,10 +33,11 @@
         <p>Untick what you do not care about. Your choices stay in this browser.</p>
         <div class="picks" id="picks"></div>
         <h3>Add your own</h3>
-        <p>Anything with a website: a bank, a broker, a shop. If it publishes a status feed the board reads it. If not, the board checks that its website answers from this device and links to Downdetector. What you add is kept in this browser only.</p>
+        <p>Anything with a website: a bank, a broker, a shop. If it publishes a status feed the board reads it. If not, the board checks that its website answers from this device. The Downdetector link is worked out from the name, so use the name Downdetector uses. What you add is kept in this browser only.</p>
         <div class="add">
           <label>Name <input id="own-name" type="text" autocomplete="off" maxlength="40" /></label>
           <label>Web address <input id="own-address" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="www.example.com" /></label>
+          <label class="whole">Its Downdetector page, if the link the board makes is wrong (optional) <input id="own-reports" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="downdetector.com/status/..." /></label>
           <button class="btn btn-primary" id="own-add" type="button">Add</button>
         </div>
         <p class="note" id="own-note" role="status" aria-live="polite"></p>
