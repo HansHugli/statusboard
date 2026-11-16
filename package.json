@@ -1,0 +1,30 @@
+{
+  "name": "statusboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Status Board: one page that reads the official status feeds of the services you care about.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test",
+    "build": "vite build",
+    "preview": "vite preview",
+    "release": "commit-and-tag-version",
+    "release:first": "commit-and-tag-version --first-release",
+    "release:minor": "commit-and-tag-version --release-as minor",
+    "release:major": "commit-and-tag-version --release-as major",
+    "release:dry": "commit-and-tag-version --dry-run",
+    "ship": "npm run check && npm run release && npm run build && git push --follow-tags origin main"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "commit-and-tag-version": "13.3.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.8"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
